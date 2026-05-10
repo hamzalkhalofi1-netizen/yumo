@@ -160,6 +160,14 @@ export default function HomeScreen() {
               <MaterialCommunityIcons name="crown" size={12} color="#000" />
             </View>
           )}
+          <TouchableOpacity
+            style={[styles.sourcesBtn, { backgroundColor: colors.muted }]}
+            onPress={() => router.push("/sources")}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="web" size={16} color={colors.primary} />
+            <Text style={[styles.sourcesBtnText, { color: colors.primary }]}>Sources</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -374,4 +382,9 @@ const styles = StyleSheet.create({
   listRating: { fontSize: 13, fontFamily: "Inter_700Bold" },
   listStatus: { fontSize: 10, fontFamily: "Inter_500Medium" },
   skeletonLine: { height: 10, borderRadius: 5 },
+  sourcesBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+  },
+  sourcesBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });

@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
+import { SourcesProvider } from "@/context/SourcesContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +27,10 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="details" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="reader" options={{ headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="sources" options={{ headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="scraper-browse" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="scraper-detail" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="scraper-reader" options={{ headerShown: false, animation: "slide_from_bottom" }} />
     </Stack>
   );
 }
@@ -53,7 +58,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AppProvider>
-                <RootLayoutNav />
+                <SourcesProvider>
+                  <RootLayoutNav />
+                </SourcesProvider>
               </AppProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
