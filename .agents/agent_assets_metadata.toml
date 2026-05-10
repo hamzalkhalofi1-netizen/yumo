@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "aCAsUOW0c0eCL4SHw1mPt"
+uri = "file://artifacts/yomu-ai/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "5HHn5iLbL9XU9RUWN_rtP"
+uri = "file://artifacts/yomu-ai/assets/images/banner.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "64ywcvscwosn6ZFjSHqD0"
+uri = "file://artifacts/yomu-ai/assets/images/placeholder-cover.png"
+type = "image"
+title = "generated_image"
