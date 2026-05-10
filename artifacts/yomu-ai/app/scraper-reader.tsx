@@ -131,6 +131,7 @@ export default function ScraperReaderScreen() {
         onClose={() => setAiVisible(false)}
         chapterTitle={title ?? "Chapter"}
         totalPages={pages.length}
+        pageUrls={pages.map((p) => p.url)}
       />
     </View>
   );
