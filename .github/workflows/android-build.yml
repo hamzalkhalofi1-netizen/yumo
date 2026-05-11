@@ -1,7 +1,7 @@
 name: Android Build
 on:
   push:
-    branches: [ main, رئيسي ] # غايخدم سواء سميت الفرع main أو رئيسي
+    branches: [ main, رئيسي ]
 
 jobs:
   build:
@@ -10,15 +10,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8 # نسخة مستقرة
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'pnpm'
+          cache-dependency-path: artifacts/yomu-ai/package.json
 
       - name: Install Dependencies
-        # هاد السطر هو الساروت باش يعرف GitHub فين كاين المشروع
         working-directory: artifacts/yomu-ai
-        run: npm install
+        # استعملنا pnpm install حيت هي اللي كتفهم البروتوكولات ديال المشروع ديالك
+        run: pnpm install --no-frozen-lockfile
 
       - name: Setup EAS CLI
         run: npm install -g eas-cli
