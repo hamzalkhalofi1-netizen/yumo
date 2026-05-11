@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  I18nManager,
   Image,
   Modal,
   Platform,
@@ -22,30 +23,94 @@ const BASE_URL = process.env["EXPO_PUBLIC_DOMAIN"]
   ? `https://${process.env["EXPO_PUBLIC_DOMAIN"]}`
   : "";
 
-async function translatePage(imageUrl: string): Promise<string> {
+// ─── Supported languages ──────────────────────────────────────────────────────
+const LANGUAGES = [
+  { code: "Arabic",  label: "العربية", flag: "🇸🇦", rtl: true  },
+  { code: "English", label: "English",  flag: "🇬🇧", rtl: false },
+  { code: "French",  label: "Français", flag: "🇫🇷", rtl: false },
+] as const;
+
+type LangCode = (typeof LANGUAGES)[number]["code"];
+
+// ─── Mock translations per language (fallback) ───────────────────────────────
+const MOCK: Record<LangCode, string[]> = {
+  Arabic: [
+    "١. «الظلام الذي يتربص عند أطراف العالم... أستطيع أن أشعر به وهو يقترب.»",
+    "١. «هل تجرؤ على تحديّي؟» أضاءت عيون المحارب بضوء قرمزي.",
+    "١. «المرتبة S... لم أتوقع أبداً أن أصل إلى هذا المستوى.»",
+    "١. نبضت البوابة بطاقة مشؤومة. في الداخل، كان شيء قديم يصحو.",
+    "١. «إشعار النظام: لقد ارتقيت مستوى. مهارة جديدة مفتوحة: استخراج الظلال.»",
+    "١. وقف وحيداً في مواجهة جيش مؤلف من عشرة آلاف. ومع ذلك، ابتسم.",
+    "١. «هذه قوتي. القوة التي ستعيد تشكيل هذا العالم.»",
+    "١. أطاعت الظلال أوامره دون تردد. كان ملكها.",
+    "١. «اهربوا،» همس للوحوش. «اهربوا بينما تستطيعون.»",
+    "١. المستوى: ؟؟؟ | القوة: لا تُقاس | الحالة: الملك الأعظم",
+  ],
+  English: [
+    '1. "The darkness that lurks at the edge of the world... I can feel it approaching."',
+    '1. "You dare challenge me?" The warrior\'s eyes gleamed with a crimson light.',
+    '1. "Rank S... I never expected to reach this level."',
+    "1. The gate pulsed with an ominous energy. Inside, something ancient was awakening.",
+    '1. "System Notification: You have leveled up. New skill unlocked: Shadow Extraction."',
+    "1. He stood alone against an army of ten thousand. And yet, he smiled.",
+    '1. "This is my power. The power that will reshape this world."',
+    "1. The shadows obeyed his command without hesitation. He was their king.",
+    '1. "Run," he whispered to the monsters. "Run while you still can."',
+    "1. Level: ??? | Strength: IMMEASURABLE | Status: MONARCH",
+  ],
+  French: [
+    "1. « L'obscurité qui rôde aux confins du monde... je la sens approcher. »",
+    "1. « Tu oses me défier ? » Les yeux du guerrier brillaient d'une lueur cramoisie.",
+    "1. « Rang S... Je ne m'attendais jamais à atteindre ce niveau. »",
+    "1. La porte pulsait d'une énergie sinistre. À l'intérieur, quelque chose d'ancien s'éveillait.",
+    "1. « Notification système : Vous avez monté de niveau. Nouvelle compétence débloquée : Extraction des Ombres. »",
+    "1. Il se tenait seul face à une armée de dix mille hommes. Et pourtant, il souriait.",
+    "1. « C'est mon pouvoir. Le pouvoir qui va remodeler ce monde. »",
+    "1. Les ombres obéissaient à son commandement sans hésitation. Il était leur roi.",
+    "1. « Fuyez, » chuchota-t-il aux monstres. « Fuyez pendant que vous le pouvez encore. »",
+    "1. Niveau : ??? | Force : INCOMMENSURABLE | Statut : MONARQUE",
+  ],
+};
+
+const LABELS: Record<LangCode, { start: string; loading: string; noText: string; next: string; done: string; error: string }> = {
+  Arabic: {
+    start:   "ترجمة مع AI؟",
+    loading: "يحلل Gemini الصفحة...",
+    noText:  "لا يوجد نص في هذه الصفحة.",
+    next:    "التالي",
+    done:    "انتهى!",
+    error:   "خطأ",
+  },
+  English: {
+    start:   "Translate with AI?",
+    loading: "Gemini analysing page...",
+    noText:  "No text detected on this page.",
+    next:    "Next",
+    done:    "Done!",
+    error:   "Error",
+  },
+  French: {
+    start:   "Traduire avec AI?",
+    loading: "Gemini analyse la page...",
+    noText:  "Aucun texte détecté sur cette page.",
+    next:    "Suivant",
+    done:    "Terminé!",
+    error:   "Erreur",
+  },
+};
+
+async function translatePage(imageUrl: string, targetLang: LangCode): Promise<string> {
   const res = await fetch(`${BASE_URL}/api/translate/page`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl, targetLang: "French" }),
+    body: JSON.stringify({ imageUrl, targetLang }),
   });
   const data = (await res.json()) as { translation?: string; error?: string };
   if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-  return data.translation ?? "Aucun texte détecté sur cette page.";
+  return data.translation ?? LABELS[targetLang].noText;
 }
 
-const MOCK_TRANSLATIONS: string[] = [
-  "« L'obscurité qui rôde aux confins du monde... je la sens approcher. »",
-  "« Tu oses me défier ? » Les yeux du guerrier brillaient d'une lueur cramoisie.",
-  "« Rang S... Je ne m'attendais jamais à atteindre ce niveau. »",
-  "La porte pulsait d'une énergie sinistre. À l'intérieur, quelque chose d'ancien s'éveillait.",
-  "« Notification système : Vous avez monté de niveau. Nouvelle compétence débloquée : Extraction des Ombres. »",
-  "Il se tenait seul face à une armée de dix mille hommes. Et pourtant, il souriait.",
-  "« C'est mon pouvoir. Le pouvoir qui va remodeler ce monde. »",
-  "Les ombres obéissaient à son commandement sans hésitation. Il était leur roi.",
-  "« Fuyez, » chuchota-t-il aux monstres. « Fuyez pendant que vous le pouvez encore. »",
-  "Niveau : ??? | Force : INCOMMENSURABLE | Statut : MONARQUE",
-];
-
+// ─── Props ────────────────────────────────────────────────────────────────────
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -56,14 +121,11 @@ interface Props {
 
 type TranslationState = "idle" | "loading" | "done" | "error";
 
-export function AITranslationModal({
-  visible,
-  onClose,
-  chapterTitle,
-  totalPages,
-  pageUrls,
-}: Props) {
+// ─── Component ────────────────────────────────────────────────────────────────
+export function AITranslationModal({ visible, onClose, chapterTitle, totalPages, pageUrls }: Props) {
   const colors = useColors();
+
+  const [selectedLang, setSelectedLang] = useState<LangCode>("Arabic");
   const [currentPage, setCurrentPage] = useState(0);
   const [started, setStarted] = useState(false);
   const [translations, setTranslations] = useState<Record<number, string>>({});
@@ -72,10 +134,12 @@ export function AITranslationModal({
   const [apiReady, setApiReady] = useState<boolean | null>(null);
   const abortRef = useRef(false);
 
-  const hasRealPages = pageUrls && pageUrls.length > 0;
-  const displayTotal = hasRealPages ? pageUrls.length : totalPages;
+  const hasRealPages = (pageUrls?.length ?? 0) > 0;
+  const displayTotal = hasRealPages ? (pageUrls?.length ?? 0) : totalPages;
+  const L = LABELS[selectedLang];
+  const isRTL = LANGUAGES.find((l) => l.code === selectedLang)?.rtl ?? false;
 
-  // Check if translation API is ready
+  // Validate API key on open
   useEffect(() => {
     if (!visible) return;
     fetch(`${BASE_URL}/api/translate/status`)
@@ -84,11 +148,11 @@ export function AITranslationModal({
       .catch(() => setApiReady(false));
   }, [visible]);
 
-  // Reset when modal closes
+  // Reset on close
   useEffect(() => {
     if (!visible) {
       abortRef.current = true;
-      setTimeout(() => {
+      const t = setTimeout(() => {
         setStarted(false);
         setCurrentPage(0);
         setTranslations({});
@@ -96,22 +160,26 @@ export function AITranslationModal({
         setErrorMsg("");
         abortRef.current = false;
       }, 300);
+      return () => clearTimeout(t);
     }
   }, [visible]);
 
-  const translateCurrentPage = async (pageIdx: number) => {
+  // Clear cached translations when language changes
+  useEffect(() => {
+    setTranslations({});
+  }, [selectedLang]);
+
+  const translateCurrent = async (pageIdx: number) => {
     if (translations[pageIdx] !== undefined) return;
     setState("loading");
     setErrorMsg("");
-
     try {
       let text: string;
       if (hasRealPages && apiReady) {
-        text = await translatePage(pageUrls![pageIdx]!);
+        text = await translatePage(pageUrls![pageIdx]!, selectedLang);
       } else {
-        // Simulated fallback with realistic delay
-        await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-        text = MOCK_TRANSLATIONS[pageIdx % MOCK_TRANSLATIONS.length]!;
+        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 700));
+        text = MOCK[selectedLang][pageIdx % MOCK[selectedLang].length]!;
       }
       if (!abortRef.current) {
         setTranslations((prev) => ({ ...prev, [pageIdx]: text }));
@@ -119,7 +187,7 @@ export function AITranslationModal({
       }
     } catch (err: any) {
       if (!abortRef.current) {
-        setErrorMsg(err.message ?? "Erreur de traduction");
+        setErrorMsg(err.message ?? "فشل الترجمة");
         setState("error");
       }
     }
@@ -129,7 +197,7 @@ export function AITranslationModal({
     setStarted(true);
     setCurrentPage(0);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await translateCurrentPage(0);
+    await translateCurrent(0);
   };
 
   const handleNext = async () => {
@@ -137,22 +205,22 @@ export function AITranslationModal({
     if (next >= displayTotal) return;
     setCurrentPage(next);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await translateCurrentPage(next);
+    await translateCurrent(next);
+  };
+
+  const handlePrev = () => {
+    const prev = currentPage - 1;
+    if (prev < 0) return;
+    setCurrentPage(prev);
+    if (!translations[prev]) translateCurrent(prev);
   };
 
   const handleRetry = () => {
-    setTranslations((prev) => {
-      const updated = { ...prev };
-      delete updated[currentPage];
-      return updated;
-    });
-    translateCurrentPage(currentPage);
+    setTranslations((prev) => { const u = { ...prev }; delete u[currentPage]; return u; });
+    translateCurrent(currentPage);
   };
 
-  const handleClose = () => {
-    abortRef.current = true;
-    onClose();
-  };
+  const handleClose = () => { abortRef.current = true; onClose(); };
 
   const currentTranslation = translations[currentPage];
   const isLoading = state === "loading";
@@ -164,7 +232,7 @@ export function AITranslationModal({
       <View style={styles.overlay}>
         <View style={[styles.container, { backgroundColor: colors.card }]}>
 
-          {/* Header */}
+          {/* ── Header ── */}
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerLeft}>
               <View style={[styles.aiBadge, { backgroundColor: colors.primary }]}>
@@ -177,27 +245,63 @@ export function AITranslationModal({
                 {chapterTitle}
               </Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <MaterialCommunityIcons name="close" size={22} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
           {!started ? (
-            /* ─── Launch Screen ─── */
+            /* ── Launch Screen ── */
             <ScrollView contentContainerStyle={styles.startContainer} showsVerticalScrollIndicator={false}>
               <View style={[styles.iconCircle, { backgroundColor: colors.muted }]}>
                 <MaterialCommunityIcons name="robot-excited" size={52} color={colors.primary} />
               </View>
 
-              <Text style={[styles.startTitle, { color: colors.foreground }]}>
-                Traduire avec AI ?
-              </Text>
+              <Text style={[styles.startTitle, { color: colors.foreground }]}>{L.start}</Text>
               <Text style={[styles.startDesc, { color: colors.mutedForeground }]}>
                 {hasRealPages && apiReady
-                  ? "Gemini Vision analysera chaque page, extraira le texte coréen par OCR et le traduira en français."
-                  : "Notre IA va analyser chaque page et traduire le texte coréen en français, page par page."}
+                  ? "Gemini Vision سيحلل كل صفحة، ويستخرج النص الكوري ويترجمه."
+                  : "سيحلل الذكاء الاصطناعي كل صفحة ويترجم النص الكوري صفحة بصفحة."}
               </Text>
 
+              {/* ── Language Selector ── */}
+              <View style={styles.langSelectorLabel}>
+                <MaterialCommunityIcons name="earth" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.langSelectorTitle, { color: colors.mutedForeground }]}>
+                  لغة الترجمة
+                </Text>
+              </View>
+              <View style={[styles.langRow, { backgroundColor: colors.muted }]}>
+                {LANGUAGES.map((lang) => {
+                  const active = selectedLang === lang.code;
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.langBtn,
+                        active && { backgroundColor: colors.primary },
+                      ]}
+                      onPress={() => {
+                        setSelectedLang(lang.code);
+                        Haptics.selectionAsync();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.langFlag}>{lang.flag}</Text>
+                      <Text style={[
+                        styles.langLabel,
+                        { color: active ? "#fff" : colors.mutedForeground },
+                        active && { fontFamily: "Inter_700Bold" },
+                      ]}>
+                        {lang.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* ── Info grid ── */}
               <View style={[styles.infoGrid, { backgroundColor: colors.muted }]}>
                 <View style={styles.infoItem}>
                   <MaterialCommunityIcons name="image-search" size={18} color={colors.primary} />
@@ -206,12 +310,14 @@ export function AITranslationModal({
                 <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.infoItem}>
                   <MaterialCommunityIcons name="translate" size={18} color={colors.primary} />
-                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>KO → FR</Text>
+                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
+                    KO → {LANGUAGES.find((l) => l.code === selectedLang)?.flag}
+                  </Text>
                 </View>
                 <View style={[styles.infoDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.infoItem}>
                   <MaterialCommunityIcons name="book-open-page-variant" size={18} color={colors.primary} />
-                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{displayTotal} pages</Text>
+                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{displayTotal} صفحة</Text>
                 </View>
               </View>
 
@@ -219,7 +325,7 @@ export function AITranslationModal({
                 <View style={[styles.warnBox, { backgroundColor: "rgba(255,160,0,0.12)", borderColor: "#FFA000" }]}>
                   <MaterialCommunityIcons name="alert" size={15} color="#FFA000" />
                   <Text style={[styles.warnText, { color: "#FFA000" }]}>
-                    Clé API non configurée — mode simulation activé.
+                    مفتاح API غير مُعدَّ — وضع المحاكاة نشط.
                   </Text>
                 </View>
               )}
@@ -230,40 +336,48 @@ export function AITranslationModal({
                 activeOpacity={0.85}
               >
                 <MaterialCommunityIcons name="play-circle" size={20} color="#fff" />
-                <Text style={styles.startBtnText}>Démarrer la traduction</Text>
+                <Text style={styles.startBtnText}>بدء الترجمة</Text>
               </TouchableOpacity>
             </ScrollView>
           ) : (
-            /* ─── Translation Reader ─── */
+            /* ── Reader ── */
             <View style={styles.readerContainer}>
               {/* Progress */}
               <View style={styles.progressSection}>
                 <View style={styles.progressLabelRow}>
                   <Text style={[styles.pageNum, { color: colors.mutedForeground }]}>
-                    Page {currentPage + 1} / {displayTotal}
+                    {currentPage + 1} / {displayTotal}
                   </Text>
                   {isLoading && (
                     <View style={styles.processingBadge}>
                       <ActivityIndicator size={10} color={colors.primary} />
                       <Text style={[styles.processingText, { color: colors.primary }]}>
-                        {hasRealPages && apiReady ? "Gemini analyse..." : "Traduction..."}
+                        {hasRealPages && apiReady ? L.loading : "جارٍ الترجمة..."}
                       </Text>
                     </View>
                   )}
+                  {/* Language switcher (compact) */}
+                  <View style={styles.langMini}>
+                    {LANGUAGES.map((lang) => (
+                      <TouchableOpacity
+                        key={lang.code}
+                        onPress={() => { setSelectedLang(lang.code); Haptics.selectionAsync(); }}
+                        style={[styles.langMiniBtn, selectedLang === lang.code && { backgroundColor: colors.primary }]}
+                      >
+                        <Text style={styles.langMiniFlag}>{lang.flag}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
                 <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
                   <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${progress}%` }]} />
                 </View>
               </View>
 
-              {/* Page image (real) or mock panel */}
+              {/* Page image or mock */}
               <View style={[styles.pageView, { backgroundColor: colors.background }]}>
-                {hasRealPages && pageUrls![currentPage] ? (
-                  <Image
-                    source={{ uri: pageUrls![currentPage] }}
-                    style={styles.pageImage}
-                    resizeMode="contain"
-                  />
+                {hasRealPages && pageUrls?.[currentPage] ? (
+                  <Image source={{ uri: pageUrls[currentPage] }} style={styles.pageImage} resizeMode="contain" />
                 ) : (
                   <View style={styles.mockPage}>
                     <View style={styles.mockPanel}>
@@ -276,7 +390,10 @@ export function AITranslationModal({
               </View>
 
               {/* Translation bubble */}
-              <View style={[styles.translationCard, { backgroundColor: colors.muted, borderColor: isError ? colors.destructive : colors.primary }]}>
+              <View style={[styles.translationCard, {
+                backgroundColor: colors.muted,
+                borderColor: isError ? colors.destructive : colors.primary,
+              }]}>
                 <View style={styles.bubbleHeader}>
                   <MaterialCommunityIcons
                     name={isError ? "alert-circle" : isLoading ? "dots-horizontal" : "check-circle"}
@@ -284,29 +401,30 @@ export function AITranslationModal({
                     color={isError ? colors.destructive : isLoading ? colors.mutedForeground : colors.primary}
                   />
                   <Text style={[styles.bubbleLabel, { color: isError ? colors.destructive : colors.primary }]}>
-                    {isError ? "Erreur" : isLoading ? "Analyse en cours..." : "Traduction française"}
+                    {isError ? L.error : isLoading ? "..." : "الترجمة"}
                   </Text>
                   {isError && (
                     <TouchableOpacity onPress={handleRetry} style={styles.retryBtn}>
-                      <Text style={[styles.retryText, { color: colors.primary }]}>Réessayer</Text>
+                      <Text style={[styles.retryText, { color: colors.primary }]}>إعادة المحاولة</Text>
                     </TouchableOpacity>
                   )}
                 </View>
-
                 <ScrollView style={styles.translationScroll} showsVerticalScrollIndicator={false}>
                   {isLoading ? (
                     <View style={styles.loadingRow}>
                       <ActivityIndicator size="small" color={colors.primary} />
-                      <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-                        {hasRealPages && apiReady
-                          ? "Gemini Vision analyse la page..."
-                          : "Traduction en cours..."}
-                      </Text>
+                      <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>{L.loading}</Text>
                     </View>
                   ) : isError ? (
-                    <Text style={[styles.errorText, { color: colors.destructive }]}>{errorMsg}</Text>
+                    <Text style={[styles.translatedText, { color: colors.destructive, writingDirection: "ltr" }]}>
+                      {errorMsg}
+                    </Text>
                   ) : currentTranslation ? (
-                    <Text style={[styles.translatedText, { color: colors.foreground }]}>
+                    <Text style={[
+                      styles.translatedText,
+                      { color: colors.foreground },
+                      isRTL && styles.rtlText,
+                    ]}>
                       {currentTranslation}
                     </Text>
                   ) : null}
@@ -318,17 +436,13 @@ export function AITranslationModal({
                 {currentPage > 0 && (
                   <TouchableOpacity
                     style={[styles.prevBtn, { borderColor: colors.border }]}
-                    onPress={() => {
-                      const prev = currentPage - 1;
-                      setCurrentPage(prev);
-                      if (!translations[prev]) translateCurrentPage(prev);
-                    }}
+                    onPress={handlePrev}
                     disabled={isLoading}
                   >
-                    <MaterialCommunityIcons name="arrow-left" size={18} color={isLoading ? colors.mutedForeground : colors.foreground} />
+                    <MaterialCommunityIcons name="arrow-left" size={18}
+                      color={isLoading ? colors.mutedForeground : colors.foreground} />
                   </TouchableOpacity>
                 )}
-
                 {currentPage < displayTotal - 1 ? (
                   <TouchableOpacity
                     style={[styles.nextBtn, { backgroundColor: isLoading ? colors.muted : colors.primary, flex: 1 }]}
@@ -337,13 +451,10 @@ export function AITranslationModal({
                     activeOpacity={0.85}
                   >
                     <Text style={[styles.nextBtnText, { color: isLoading ? colors.mutedForeground : "#fff" }]}>
-                      Suivant
+                      {L.next}
                     </Text>
-                    <MaterialCommunityIcons
-                      name="arrow-right"
-                      size={18}
-                      color={isLoading ? colors.mutedForeground : "#fff"}
-                    />
+                    <MaterialCommunityIcons name="arrow-right" size={18}
+                      color={isLoading ? colors.mutedForeground : "#fff"} />
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
@@ -352,7 +463,7 @@ export function AITranslationModal({
                     activeOpacity={0.85}
                   >
                     <MaterialCommunityIcons name="check-circle" size={18} color="#fff" />
-                    <Text style={styles.nextBtnText}>Terminé !</Text>
+                    <Text style={styles.nextBtnText}>{L.done}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -373,7 +484,7 @@ const styles = StyleSheet.create({
   container: {
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    maxHeight: height * 0.9,
+    maxHeight: height * 0.92,
     paddingBottom: Platform.OS === "ios" ? 34 : 20,
   },
   header: {
@@ -383,190 +494,106 @@ const styles = StyleSheet.create({
     padding: 18,
     borderBottomWidth: 0.5,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   aiBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
   },
-  aiBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 0.3,
-  },
-  headerTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    flex: 1,
-  },
+  aiBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  headerTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1 },
   closeBtn: { padding: 4 },
-  startContainer: {
-    padding: 24,
-    alignItems: "center",
-    gap: 16,
+
+  startContainer: { padding: 24, alignItems: "center", gap: 14 },
+  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
+  startTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
+  startDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+
+  langSelectorLabel: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
+  langSelectorTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  langRow: {
+    flexDirection: "row",
+    borderRadius: 14,
+    overflow: "hidden",
+    width: "100%",
+    padding: 4,
+    gap: 4,
   },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  langBtn: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
-  startTitle: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  startDesc: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  langFlag: { fontSize: 16 },
+  langLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
   infoGrid: {
     flexDirection: "row",
     borderRadius: 12,
     overflow: "hidden",
     width: "100%",
   },
-  infoItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 14,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
+  infoItem: { flex: 1, alignItems: "center", gap: 5, paddingVertical: 12 },
+  infoLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   infoDivider: { width: 0.5 },
   warnBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    width: "100%",
+    flexDirection: "row", alignItems: "center", gap: 8,
+    padding: 12, borderRadius: 10, borderWidth: 1, width: "100%",
   },
   warnText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   startBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 15,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    width: "100%",
-    justifyContent: "center",
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 15, paddingHorizontal: 32,
+    borderRadius: 14, width: "100%", justifyContent: "center",
   },
-  startBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
-  readerContainer: {
-    padding: 16,
-    gap: 12,
-  },
+  startBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+
+  readerContainer: { padding: 16, gap: 12 },
   progressSection: { gap: 7 },
-  progressLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+  progressLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   pageNum: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  processingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
+  processingBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
   processingText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  progressBar: {
-    height: 3,
-    borderRadius: 2,
-    overflow: "hidden",
+  langMini: { flexDirection: "row", gap: 4 },
+  langMiniBtn: {
+    width: 26, height: 26, borderRadius: 6,
+    alignItems: "center", justifyContent: "center",
   },
+  langMiniFlag: { fontSize: 14 },
+  progressBar: { height: 3, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
-  pageView: {
-    borderRadius: 10,
-    overflow: "hidden",
-    height: 180,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+
+  pageView: { borderRadius: 10, overflow: "hidden", height: 165, alignItems: "center", justifyContent: "center" },
   pageImage: { width: "100%", height: "100%" },
   mockPage: { width: "100%", padding: 20, gap: 16 },
   mockPanel: { gap: 10 },
   mockStrip: { height: 12, borderRadius: 6, width: "100%" },
+
   translationCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 110,
-    maxHeight: 200,
+    borderWidth: 1, borderRadius: 12, padding: 14, minHeight: 100, maxHeight: 185,
   },
-  bubbleHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 10,
-  },
-  bubbleLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    flex: 1,
-    letterSpacing: 0.4,
-  },
+  bubbleHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  bubbleLabel: { fontSize: 11, fontFamily: "Inter_700Bold", flex: 1, letterSpacing: 0.4 },
   retryBtn: { paddingHorizontal: 8, paddingVertical: 2 },
   retryText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   translationScroll: { flex: 1 },
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   loadingText: { fontSize: 13, fontFamily: "Inter_400Regular", fontStyle: "italic" },
-  errorText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  translatedText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 22,
-    fontStyle: "italic",
-  },
-  controls: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
+  translatedText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 23, fontStyle: "italic" },
+  rtlText: { textAlign: "right", writingDirection: "rtl" },
+
+  controls: { flexDirection: "row", gap: 10, alignItems: "center" },
   prevBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 46, height: 46, borderRadius: 12, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
   },
   nextBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 12,
   },
-  nextBtnText: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-  },
+  nextBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 });

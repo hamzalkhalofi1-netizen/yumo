@@ -16,7 +16,25 @@ const FETCH_HEADERS = {
   Referer: "https://mangakatana.com/",
 };
 
-const TRANSLATE_PROMPT = `You are an expert manga/manhwa translator specializing in Korean to French translation.
+const PROMPTS: Record<string, string> = {
+  Arabic: `أنت مترجم محترف للمانهوا والمانغا متخصص في الترجمة من الكورية إلى العربية.
+
+افحص صورة هذه الصفحة بعناية.
+
+1. حدد جميع فقاعات الحوار، فقاعات التفكير، صناديق النص، صناديق السرد، المؤثرات الصوتية، وأي نص آخر في الصورة.
+2. استخرج النص الكوري من كل منها.
+3. ترجم كل نص بشكل طبيعي وسلس إلى العربية، مع الحفاظ على النبرة والعاطفة والأسلوب.
+4. نسّق إجابتك كقائمة مرقمة، إدخال واحد لكل فقاعة/عنصر نص.
+5. إذا كانت هناك مؤثرات صوتية (محاكاة صوتية)، قم بتضمينها أيضاً (مترجمة أو منقحة).
+6. إذا لم يكن هناك نص كوري على الإطلاق، أجب فقط بـ: "لا يوجد نص في هذه الصفحة."
+7. لا تدرج تعليقات أو تفسيرات أو النص الكوري الأصلي — فقط الترجمات العربية.
+
+مثال على المخرجات:
+1. "لماذا أنت هنا؟"
+2. "أنا... لا أعرف."
+3. *بووم!*`,
+
+  French: `You are an expert manga/manhwa translator specializing in Korean to French translation.
 
 Examine this manhwa page image carefully.
 
@@ -31,7 +49,35 @@ Examine this manhwa page image carefully.
 Example output:
 1. "Pourquoi es-tu ici ?"
 2. "Je... je ne sais pas."
-3. *BANG* — BOUM !`;
+3. *BANG* — BOUM !`,
+
+  English: `You are an expert manga/manhwa translator specializing in Korean to English translation.
+
+Examine this manhwa page image carefully.
+
+1. Identify ALL speech bubbles, thought bubbles, text boxes, narration boxes, sound effects, and any other text in the image.
+2. Extract the Korean text from each one.
+3. Translate each text naturally and fluently into English, preserving the tone, emotion, and style.
+4. Format your response as a numbered list, one entry per speech bubble/text element.
+5. If sound effects (onomatopoeia) are present, include them too (translated or adapted).
+6. If there is no Korean text at all, respond only with: "No text detected on this page."
+7. Do NOT include commentary, explanations, or the original Korean text — only the English translations.
+
+Example output:
+1. "Why are you here?"
+2. "I... I don't know."
+3. *BANG!*`,
+};
+
+function getPrompt(targetLang: string): string {
+  return PROMPTS[targetLang] ?? PROMPTS["Arabic"]!;
+}
+
+const NO_TEXT_MSGS: Record<string, string> = {
+  Arabic: "لا يوجد نص في هذه الصفحة.",
+  French: "Aucun texte détecté sur cette page.",
+  English: "No text detected on this page.",
+};
 
 async function fetchImageAsBase64(imageUrl: string): Promise<{ data: string; mimeType: string }> {
   const controller = new AbortController();
@@ -54,9 +100,8 @@ async function fetchImageAsBase64(imageUrl: string): Promise<{ data: string; mim
 }
 
 // ─── POST /api/translate/page ─────────────────────────────────────────────────
-// Translates a single manga page image from Korean to a target language
 router.post("/translate/page", async (req: Request, res: Response) => {
-  const { imageUrl, targetLang = "French" } = req.body as {
+  const { imageUrl, targetLang = "Arabic" } = req.body as {
     imageUrl?: string;
     targetLang?: string;
   };
@@ -68,21 +113,12 @@ router.post("/translate/page", async (req: Request, res: Response) => {
 
   try {
     const { data, mimeType } = await fetchImageAsBase64(imageUrl);
-
     const genai = getGemini();
     const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const imagePart: Part = { inlineData: { data, mimeType } };
 
-    const prompt =
-      targetLang === "French"
-        ? TRANSLATE_PROMPT
-        : TRANSLATE_PROMPT.replace(/French/g, targetLang).replace(/Aucun texte détecté sur cette page\./g, `No text detected on this page.`);
-
-    const imagePart: Part = {
-      inlineData: { data, mimeType },
-    };
-
-    const result = await model.generateContent([prompt, imagePart]);
-    const translation = result.response.text().trim();
+    const result = await model.generateContent([getPrompt(targetLang), imagePart]);
+    const translation = result.response.text().trim() || (NO_TEXT_MSGS[targetLang] ?? NO_TEXT_MSGS["Arabic"]!);
 
     res.json({ translation, targetLang });
   } catch (err: any) {
@@ -93,11 +129,11 @@ router.post("/translate/page", async (req: Request, res: Response) => {
       return;
     }
     if (err.message?.includes("leaked") || err.message?.includes("PERMISSION_DENIED") || err.message?.includes("403")) {
-      res.status(403).json({ error: "Clé API invalide ou révoquée. Veuillez générer une nouvelle clé sur aistudio.google.com." });
+      res.status(403).json({ error: "مفتاح API غير صالح أو ملغى. يرجى إنشاء مفتاح جديد." });
       return;
     }
     if (err.message?.includes("Image fetch")) {
-      res.status(502).json({ error: `Impossible de récupérer l'image: ${err.message}` });
+      res.status(502).json({ error: `تعذّر جلب الصورة: ${err.message}` });
       return;
     }
     res.status(500).json({ error: err.message ?? "Translation failed" });
@@ -105,9 +141,8 @@ router.post("/translate/page", async (req: Request, res: Response) => {
 });
 
 // ─── POST /api/translate/batch ────────────────────────────────────────────────
-// Translate multiple pages, returns array of translations (SSE-style progress)
 router.post("/translate/batch", async (req: Request, res: Response) => {
-  const { imageUrls, targetLang = "French" } = req.body as {
+  const { imageUrls, targetLang = "Arabic" } = req.body as {
     imageUrls?: string[];
     targetLang?: string;
   };
@@ -133,6 +168,8 @@ router.post("/translate/batch", async (req: Request, res: Response) => {
   }
 
   const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const prompt = getPrompt(targetLang);
+  const fallbackMsg = NO_TEXT_MSGS[targetLang] ?? NO_TEXT_MSGS["Arabic"]!;
   const results: string[] = [];
 
   for (let i = 0; i < imageUrls.length; i++) {
@@ -140,16 +177,14 @@ router.post("/translate/batch", async (req: Request, res: Response) => {
     try {
       const { data, mimeType } = await fetchImageAsBase64(url!);
       const imagePart: Part = { inlineData: { data, mimeType } };
-      const result = await model.generateContent([TRANSLATE_PROMPT, imagePart]);
-      const translation = result.response.text().trim();
+      const result = await model.generateContent([prompt, imagePart]);
+      const translation = result.response.text().trim() || fallbackMsg;
       results.push(translation);
       sendEvent({ index: i, translation, total: imageUrls.length });
     } catch (err: any) {
-      const fallback = "Traduction indisponible pour cette page.";
-      results.push(fallback);
-      sendEvent({ index: i, translation: fallback, error: err.message, total: imageUrls.length });
+      results.push(fallbackMsg);
+      sendEvent({ index: i, translation: fallbackMsg, error: err.message, total: imageUrls.length });
     }
-    // small delay to avoid rate limits
     if (i < imageUrls.length - 1) await new Promise((r) => setTimeout(r, 300));
   }
 
@@ -158,7 +193,6 @@ router.post("/translate/batch", async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/translate/status ───────────────────────────────────────────────
-// Performs a live validation of the API key (not just presence check)
 router.get("/translate/status", async (_req: Request, res: Response) => {
   const key = process.env["GEMINI_API_KEY"];
   if (!key) {
@@ -167,7 +201,6 @@ router.get("/translate/status", async (_req: Request, res: Response) => {
   }
 
   try {
-    // Quick probe to verify the key is valid and not revoked
     const probe = await fetch(
       `https://generativelanguage.googleapis.com/v1/models?key=${key}&pageSize=1`
     );
@@ -181,7 +214,8 @@ router.get("/translate/status", async (_req: Request, res: Response) => {
     res.json({
       ready: true,
       model: "gemini-1.5-flash",
-      capabilities: ["vision-ocr", "korean-to-french", "multi-language"],
+      languages: ["Arabic", "English", "French"],
+      defaultLang: "Arabic",
     });
   } catch (err: any) {
     res.json({ ready: false, reason: err.message ?? "Network error" });
