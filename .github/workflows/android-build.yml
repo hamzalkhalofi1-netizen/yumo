@@ -1,7 +1,7 @@
 name: Android Build
 on:
   push:
-    branches: [ main ] # كيتنفذ ملي كتصيفط الكود لفرع main
+    branches: [ main, رئيسي ] # غايخدم سواء سميت الفرع main أو رئيسي
 
 jobs:
   build:
@@ -16,13 +16,16 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
+        # هاد السطر هو الساروت باش يعرف GitHub فين كاين المشروع
+        working-directory: artifacts/yomu-ai
         run: npm install
 
       - name: Setup EAS CLI
         run: npm install -g eas-cli
 
       - name: Build APK (Preview)
+        working-directory: artifacts/yomu-ai
         run: eas build --platform android --profile preview --non-interactive
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }} # هادا هو الساروت اللي خاصنا نقادوه
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           
