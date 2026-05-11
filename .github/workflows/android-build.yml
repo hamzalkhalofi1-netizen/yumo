@@ -15,13 +15,11 @@ jobs:
         with:
           node-version: 18
 
-      - name: Setup EAS CLI
-        run: npm install -g eas-cli
-
-      - name: Build APK (Preview)
-        # هنا كنقولو لـ Expo: "خود الكود كيفما هو ودبر راسك فـ الـ Dependencies فـ السيرفر ديالك"
+      - name: Force Build via Expo
         working-directory: artifacts/yomu-ai
-        run: eas build --platform android --profile preview --non-interactive --no-wait
+        # هاد السطر غايتجاوز الـ preinstall اللي مبرزطاك
+        run: |
+          npx eas-cli build --platform android --profile preview --non-interactive --no-wait
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           
