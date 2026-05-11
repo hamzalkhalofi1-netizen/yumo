@@ -10,29 +10,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8 # نسخة مستقرة
-
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: 'pnpm'
-          cache-dependency-path: artifacts/yomu-ai/package.json
-
-      - name: Install Dependencies
-        working-directory: artifacts/yomu-ai
-        # استعملنا pnpm install حيت هي اللي كتفهم البروتوكولات ديال المشروع ديالك
-        run: pnpm install --no-frozen-lockfile
 
       - name: Setup EAS CLI
         run: npm install -g eas-cli
 
       - name: Build APK (Preview)
+        # هنا كنقولو لـ Expo: "خود الكود كيفما هو ودبر راسك فـ الـ Dependencies فـ السيرفر ديالك"
         working-directory: artifacts/yomu-ai
-        run: eas build --platform android --profile preview --non-interactive
+        run: eas build --platform android --profile preview --non-interactive --no-wait
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           
