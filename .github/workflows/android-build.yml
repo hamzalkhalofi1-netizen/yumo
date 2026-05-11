@@ -1,0 +1,28 @@
+name: Android Build
+on:
+  push:
+    branches: [ main ] # كيتنفذ ملي كتصيفط الكود لفرع main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Setup EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build APK (Preview)
+        run: eas build --platform android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }} # هادا هو الساروت اللي خاصنا نقادوه
+          
